@@ -4,6 +4,7 @@ from torch.autograd import Variable
 import torch.functional as F
 import numpy as np
 import torch.optim as optim
+import math
 
 class fire(nn.Module):
     def __init__(self, inplanes, squeeze_planes, expand_planes):
@@ -48,8 +49,6 @@ class SqueezeNet(nn.Module):
         self.conv2 = nn.Conv2d(512, 10, kernel_size=1, stride=1)
         self.avg_pool = nn.AvgPool2d(kernel_size=4, stride=4)
 
-    # Using MSR intialization
-    def MSRinit(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -75,5 +74,11 @@ class SqueezeNet(nn.Module):
         return x
 
 def squeezenet(pretrained=False):
-    model = SqueezeNet()
-    return model
+    net = SqueezeNet()
+    inp = Variable(torch.randn(64,3,32,32))
+    out = net.forward(inp)
+    print(out.size())
+    return net
+
+if __name__ == '__main__':
+    squeezenet()
