@@ -48,7 +48,7 @@ class SqueezeNet(nn.Module):
         self.fire9 = fire(512, 64, 256)
         self.conv2 = nn.Conv2d(512, 10, kernel_size=1, stride=1)
         self.avg_pool = nn.AvgPool2d(kernel_size=4, stride=4)
-
+        self.softmax = nn.LogSoftmax()
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -71,14 +71,16 @@ class SqueezeNet(nn.Module):
         x = self.fire9(x)
         x = self.conv2(x)
         x = self.avg_pool(x)
+        x = x.view(-1, 10)
+        x = self.softmax(x)
         return x
 
 def squeezenet(pretrained=False):
     net = SqueezeNet()
-    inp = Variable(torch.randn(64,3,32,32))
-    out = net.forward(inp)
-    print(out.size())
+    # inp = Variable(torch.randn(64,3,32,32))
+    # out = net.forward(inp)
+    # print(out.size())
     return net
 
-if __name__ == '__main__':
-    squeezenet()
+# if __name__ == '__main__':
+#     squeezenet()
