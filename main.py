@@ -105,6 +105,7 @@ def train(epoch):
         data, targets = Variable(data), Variable(targets)
 
         # train the network
+        optimizer.zero_grad()
         scores = net.forward(data)
         loss = F.nll_loss(scores, targets)
 
