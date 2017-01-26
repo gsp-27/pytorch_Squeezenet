@@ -14,14 +14,13 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser('Options for training SqueezeNet in pytorch')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N', help='batch size of train')
 parser.add_argument('--epoch', type=int, default=55, metavar='N', help='number of epochs to train for')
-parser.add_argument('--learning-rate', type=float, default=0.0003, metavar='LR', help='learning rate')
+parser.add_argument('--learning-rate', type=float, default=0.001, metavar='LR', help='learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='percentage of past parameters to store')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='use cuda for training')
 parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='number of epochs to save snapshot after')
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
 
 args = parser.parse_args()
-print (args)
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
@@ -52,20 +51,54 @@ if args.cuda:
 #print(net)
 
 # create optimizer
-optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=0.0005)
+# using the 55 epoch learning rule here
+def paramsforepoch(epoch):
+    p = dict()
+    regimes = [[1, 18, 1e-2, 5e-4],
+               [19, 29, 5e-3, 5e-4],
+               [30, 43, 1e-3, 0],
+               [44, 52, 5e-4, 0],
+               [53, 1e8, 1e-4, 0]]
+    for i, row in enumerate(regimes):
+        if epoch >= row[0] and epoch <= row[1]:
+            p['learning_rate'] = row[2]
+            p['weight_decay'] = row[3]
+    return p
+
 avg_loss = list()
-# fig, ax = plt.subplot(nrows=1, ncols=1)
+fig1, ax1 = plt.subplots()
+fig2, ax2 = plt.subplots()
 # train the model
 # TODO: Compute training accuracy and test accuracy
 # TODO: train it on some data and see if it overfits.
 # TODO: train the data on final model
 # TODO: try 55 epoch training rule, not training with this constant policy.
 
+# create a temporary optimizer
+optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=0.0005)
+
+def adjustlrwd(params):
+    for param_group in optimizer.state_dict()['param_groups']:
+        param_group['lr'] = params['learning_rate']
+        param_group['weight_decay'] = params['weight_decay']
+
+# train the network
 def train(epoch):
+
+    # set the optimizer for this epoch
+    params = paramsforepoch(epoch)
+    print("Configuring optimizer with lr={:.3f} and weight_decay={:.3f}".format(params['learning_rate'], params['weight_decay']))
+    adjustlrwd(params)
+    ###########################################################################
+
     global avg_loss
     correct = 0
     net.train()
     for b_idx, (data, targets) in enumerate(train_loader):
+        # trying to overfit a small data
+        if b_idx == 100:
+            break
+
         if args.cuda:
             data.cuda(), targets.cuda()
         # convert the data and targets into Variable and cuda form
@@ -82,22 +115,21 @@ def train(epoch):
         avg_loss.append(loss.data[0])
         loss.backward()
         optimizer.step()
+
         if b_idx % args.log_schedule == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, (b_idx+1) * len(data), len(train_loader.dataset),
-                100. * (b_idx+1) / len(train_loader), loss.data[0]))
+                100. * (b_idx+1) / 100, loss.data[0]))
             # also plot the loss, it should go down exponentially at some point
-            plt.plot(avg_loss)
-            plt.savefig("Squeezenet_loss.jpg")
+            ax1.plot(avg_loss)
+            fig1.savefig("Squeezenet_loss.jpg")
 
-    plt.close()
     # now that the epoch is completed plot the accuracy
-    accuracy = correct / 50000.0
+    accuracy = correct / 6400.0
     print("training accuracy ({:.2f}%)".format(100*accuracy))
-    plt.plot(accuracy)
-    plt.savefig("Training-test-acc.jpg")
-    plt.close()
+    ax2.plot(100*accuracy)
+    fig2.savefig("Training-test-acc.jpg")
 
 if __name__ == '__main__':
-    for i in xrange(args.epoch):
+    for i in xrange(1,args.epoch+1):
         train(i)
