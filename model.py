@@ -27,6 +27,7 @@ class fire(nn.Module):
         out1 = self.conv2(x)
         out2 = self.conv3(x)
         out = torch.cat([out1, out2], 1)
+        out = self.relu2(out)
         return out
 
 
@@ -34,6 +35,7 @@ class SqueezeNet(nn.Module):
     def __init__(self):
         super(SqueezeNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 96, kernel_size=3, stride=1, padding=1) # 32
+        self.bn1 = nn.BatchNorm2d(96)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2) # 16
         self.fire2 = fire(96, 16, 64)
@@ -53,10 +55,14 @@ class SqueezeNet(nn.Module):
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
 
     def forward(self, x):
         x = self.conv1(x)
+        x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool1(x)
         x = self.fire2(x)

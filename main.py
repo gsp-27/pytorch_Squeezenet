@@ -21,6 +21,7 @@ parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='n
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
 
 args = parser.parse_args()
+print (args)
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
@@ -29,7 +30,7 @@ if args.cuda:
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 train_loader = torch.utils.data.DataLoader(
-    datasets.CIFAR10('../', train=True, download=False,
+    datasets.CIFAR10('../', train=True, download=True,
                    transform=transforms.Compose([
                        transforms.RandomHorizontalFlip(),
                        transforms.ToTensor(),
@@ -51,37 +52,52 @@ if args.cuda:
 #print(net)
 
 # create optimizer
-optimizer = optim.Adam(net.parameters(), betas=(0.9, 0.999), lr=3e-3, eps=1e-8, weight_decay=0.05)
+optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=0.0005)
 avg_loss = list()
-
+# fig, ax = plt.subplot(nrows=1, ncols=1)
 # train the model
 # TODO: Compute training accuracy and test accuracy
 # TODO: train it on some data and see if it overfits.
 # TODO: train the data on final model
+# TODO: try 55 epoch training rule, not training with this constant policy.
 
 def train(epoch):
     global avg_loss
+    correct = 0
     net.train()
     for b_idx, (data, targets) in enumerate(train_loader):
-        # convert the data and targets into Variable and cuda form
-        data, targets = Variable(data), Variable(targets)
         if args.cuda:
             data.cuda(), targets.cuda()
+        # convert the data and targets into Variable and cuda form
+        data, targets = Variable(data), Variable(targets)
+
         # train the network
         scores = net.forward(data)
         loss = F.nll_loss(scores, targets)
+
+        # compute the accuracy
+        pred = scores.data.max(1)[1] # get the index of the max log-probability
+        correct += pred.eq(targets.data).cpu().sum()
+
         avg_loss.append(loss.data[0])
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
+        if b_idx % args.log_schedule == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, (b_idx+1) * len(data), len(train_loader.dataset),
                 100. * (b_idx+1) / len(train_loader), loss.data[0]))
             # also plot the loss, it should go down exponentially at some point
             plt.plot(avg_loss)
-            plt.save_fig("Squeezenet_loss")
+            plt.savefig("Squeezenet_loss.jpg")
+
+    plt.close()
+    # now that the epoch is completed plot the accuracy
+    accuracy = correct / 50000.0
+    print("training accuracy ({:.2f}%)".format(100*accuracy))
+    plt.plot(accuracy)
+    plt.savefig("Training-test-acc.jpg")
     plt.close()
 
 if __name__ == '__main__':
-    for i in xrange(1):
+    for i in xrange(args.epoch):
         train(i)
