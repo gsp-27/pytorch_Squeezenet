@@ -19,6 +19,7 @@ parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='pe
 parser.add_argument('--no-cuda', action='store_true', default=False, help='use cuda for training')
 parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='number of epochs to save snapshot after')
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
+parser.add_argument('--model_name', type=str, default=None, help='Use a pretrained model')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -46,6 +47,11 @@ test_loader = torch.utils.data.DataLoader(
 
 # get the model and convert it into cuda for if necessary
 net  = model.SqueezeNet()
+if args.model_name is not None:
+    print("loading pre trained weights")
+    pretrained_weights = torch.load(args.model_name)
+    net.load_state_dict(pretrained_weights)
+
 if args.cuda:
     net.cuda()
 #print(net)
@@ -54,11 +60,16 @@ if args.cuda:
 # using the 55 epoch learning rule here
 def paramsforepoch(epoch):
     p = dict()
-    regimes = [[1, 18, 1e-2, 5e-4],
-               [19, 29, 5e-3, 5e-4],
-               [30, 43, 1e-3, 0],
-               [44, 52, 5e-4, 0],
-               [53, 1e8, 1e-4, 0]]
+    # regimes = [[1, 18, 1e-3, 5e-4],
+    #            [19, 29, 1e-3, 5e-4],
+    #            [30, 43, 5e-4, 5e-4],
+    #            [44, 52, 1e-4, 0],
+    #            [53, 1e8, 1e-5, 0]]
+    regimes = [[1, 18, 1e-4, 5e-4],
+               [19, 29, 5e-5, 5e-4],
+               [30, 43, 1e-5, 5e-4],
+               [44, 52, 5e-6, 0],
+               [53, 1e8, 1e-6, 0]]
     for i, row in enumerate(regimes):
         if epoch >= row[0] and epoch <= row[1]:
             p['learning_rate'] = row[2]
@@ -66,8 +77,10 @@ def paramsforepoch(epoch):
     return p
 
 avg_loss = list()
+best_accuracy = 0.0
 fig1, ax1 = plt.subplots()
-fig2, ax2 = plt.subplots()
+
+
 # train the model
 # TODO: Compute training accuracy and test accuracy
 # TODO: train it on some data and see if it overfits.
@@ -75,11 +88,11 @@ fig2, ax2 = plt.subplots()
 # TODO: try 55 epoch training rule, not training with this constant policy.
 
 # create a temporary optimizer
-optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=0.0005)
+optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=5e-4)
 
 def adjustlrwd(params):
     for param_group in optimizer.state_dict()['param_groups']:
-        param_group['lr'] = params['learning_rate']
+        param_group['lr'] = 1e-2
         param_group['weight_decay'] = params['weight_decay']
 
 # train the network
@@ -87,7 +100,7 @@ def train(epoch):
 
     # set the optimizer for this epoch
     params = paramsforepoch(epoch)
-    print("Configuring optimizer with lr={:.3f} and weight_decay={:.3f}".format(params['learning_rate'], params['weight_decay']))
+    print("Configuring optimizer with lr={:.5f} and weight_decay={:.4f}".format(params['learning_rate'], params['weight_decay']))
     adjustlrwd(params)
     ###########################################################################
 
@@ -100,7 +113,7 @@ def train(epoch):
             break
 
         if args.cuda:
-            data.cuda(), targets.cuda()
+            data, targets = data.cuda(), targets.cuda()
         # convert the data and targets into Variable and cuda form
         data, targets = Variable(data), Variable(targets)
 
@@ -121,16 +134,50 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, (b_idx+1) * len(data), len(train_loader.dataset),
                 100. * (b_idx+1) / 100, loss.data[0]))
+
             # also plot the loss, it should go down exponentially at some point
             ax1.plot(avg_loss)
             fig1.savefig("Squeezenet_loss.jpg")
 
     # now that the epoch is completed plot the accuracy
-    accuracy = correct / 6400.0
-    print("training accuracy ({:.2f}%)".format(100*accuracy))
-    ax2.plot(100*accuracy)
-    fig2.savefig("Training-test-acc.jpg")
+    train_accuracy = correct / 6400.0
+    print("training accuracy ({:.2f}%)".format(100*train_accuracy))
+    return (train_accuracy*100.0)
+
+
+def val():
+    global best_accuracy
+    correct = 0
+    for idx, (data, target) in enumerate(test_loader):
+        if idx == 73:
+            break
+
+        if args.cuda:
+            data, target = data.cuda(), target.cuda()
+        data, target = Variable(data), Variable(target)
+
+        # do the forward pass
+        score = net.forward(data)
+        pred = score.data.max(1)[1] # got the indices of the maximum, match them
+        correct += pred.eq(target.data).cpu().sum()
+
+    print("predicted {} out of {}".format(correct, 73*64))
+    val_accuracy = correct / (73.0*64.0) * 100
+    print("accuracy = {:.2f}".format(val_accuracy))
+
+    # now save the model if it has better accuracy than the best model seen so forward
+    if val_accuracy > best_accuracy:
+        best_accuracy = val_accuracy
+        # save the model
+        torch.save(net.state_dict(),'bsqueezenet_aggressive_lr.pth')
+    return val_accuracy
 
 if __name__ == '__main__':
+    fig2, ax2 = plt.subplots()
+    train_acc, val_acc = list(), list()
     for i in xrange(1,args.epoch+1):
-        train(i)
+        train_acc.append(train(i))
+        val_acc.append(val())
+        ax2.plot(train_acc, 'g')
+        ax2.plot(val_acc, 'b')
+        fig2.savefig('train_val_accuracy.jpg')
