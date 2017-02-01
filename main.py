@@ -60,16 +60,16 @@ if args.cuda:
 # using the 55 epoch learning rule here
 def paramsforepoch(epoch):
     p = dict()
-    # regimes = [[1, 18, 1e-3, 5e-4],
-    #            [19, 29, 1e-3, 5e-4],
-    #            [30, 43, 5e-4, 5e-4],
-    #            [44, 52, 1e-4, 0],
-    #            [53, 1e8, 1e-5, 0]]
-    regimes = [[1, 18, 1e-4, 5e-4],
-               [19, 29, 5e-5, 5e-4],
-               [30, 43, 1e-5, 5e-4],
-               [44, 52, 5e-6, 0],
-               [53, 1e8, 1e-6, 0]]
+    regimes = [[1, 18, 5e-3, 5e-4],
+               [19, 29, 1e-3, 5e-4],
+               [30, 43, 5e-4, 5e-4],
+               [44, 52, 1e-4, 0],
+               [53, 1e8, 1e-5, 0]]
+    # regimes = [[1, 18, 1e-4, 5e-4],
+    #            [19, 29, 5e-5, 5e-4],
+    #            [30, 43, 1e-5, 5e-4],
+    #            [44, 52, 5e-6, 0],
+    #            [53, 1e8, 1e-6, 0]]
     for i, row in enumerate(regimes):
         if epoch >= row[0] and epoch <= row[1]:
             p['learning_rate'] = row[2]
@@ -92,7 +92,7 @@ optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=0.9, wei
 
 def adjustlrwd(params):
     for param_group in optimizer.state_dict()['param_groups']:
-        param_group['lr'] = 1e-2
+        param_group['lr'] = params['learning_rate']
         param_group['weight_decay'] = params['weight_decay']
 
 # train the network
@@ -109,8 +109,8 @@ def train(epoch):
     net.train()
     for b_idx, (data, targets) in enumerate(train_loader):
         # trying to overfit a small data
-        if b_idx == 100:
-            break
+        # if b_idx == 100:
+        #     break
 
         if args.cuda:
             data, targets = data.cuda(), targets.cuda()
@@ -133,14 +133,14 @@ def train(epoch):
         if b_idx % args.log_schedule == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, (b_idx+1) * len(data), len(train_loader.dataset),
-                100. * (b_idx+1) / 100, loss.data[0]))
+                100. * (b_idx+1)*len(data) / len(train_loader.dataset), loss.data[0]))
 
             # also plot the loss, it should go down exponentially at some point
             ax1.plot(avg_loss)
             fig1.savefig("Squeezenet_loss.jpg")
 
     # now that the epoch is completed plot the accuracy
-    train_accuracy = correct / 6400.0
+    train_accuracy = correct / float(len(train_loader.dataset))
     print("training accuracy ({:.2f}%)".format(100*train_accuracy))
     return (train_accuracy*100.0)
 
@@ -169,7 +169,7 @@ def val():
     if val_accuracy > best_accuracy:
         best_accuracy = val_accuracy
         # save the model
-        torch.save(net.state_dict(),'bsqueezenet_aggressive_lr.pth')
+        torch.save(net.state_dict(),'bsqueezenet_onfulldata.pth')
     return val_accuracy
 
 if __name__ == '__main__':
