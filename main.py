@@ -20,6 +20,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False, help='use c
 parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='number of epochs to save snapshot after')
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--model_name', type=str, default=None, help='Use a pretrained model')
+parser.add_argument('--want_to_test', type=bool, default=False, help='make true if you just want to test')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -83,9 +84,6 @@ fig1, ax1 = plt.subplots()
 
 # train the model
 # TODO: Compute training accuracy and test accuracy
-# TODO: train it on some data and see if it overfits.
-# TODO: train the data on final model
-# TODO: try 55 epoch training rule, not training with this constant policy.
 
 # create a temporary optimizer
 optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=5e-4)
@@ -172,12 +170,38 @@ def val():
         torch.save(net.state_dict(),'bsqueezenet_onfulldata.pth')
     return val_accuracy
 
+def test():
+    # load the best saved model
+    weights = torch.load('bsqueezenet_onfulldata.pth')
+    net.load_state_dict(weights)
+
+    test_correct = 0
+    total_examples = 0
+    accuracy = 0.0
+    for idx, (data, target) in enumerate(test_loader):
+        if idx < 73:
+            continue
+        total_examples += len(target)
+        data, target = Variable(data), Variable(target)
+        if args.cuda:
+            data, target = data.cuda(), target.cuda()
+
+        scores = net(data)
+        pred = scores.data.max(1)[1]
+        test_correct += pred.eq(target.data).cpu().sum()
+    print("Predicted {} out of {} correctly".format(test_correct, total_examples))
+    return 100.0 * test_correct / (float(total_examples))
+
 if __name__ == '__main__':
-    fig2, ax2 = plt.subplots()
-    train_acc, val_acc = list(), list()
-    for i in xrange(1,args.epoch+1):
-        train_acc.append(train(i))
-        val_acc.append(val())
-        ax2.plot(train_acc, 'g')
-        ax2.plot(val_acc, 'b')
-        fig2.savefig('train_val_accuracy.jpg')
+    if not args.want_to_test:
+        fig2, ax2 = plt.subplots()
+        train_acc, val_acc = list(), list()
+        for i in xrange(1,args.epoch+1):
+            train_acc.append(train(i))
+            val_acc.append(val())
+            ax2.plot(train_acc, 'g')
+            ax2.plot(val_acc, 'b')
+            fig2.savefig('train_val_accuracy.jpg')
+    else:
+        test_acc = test()
+        print("Testing accuracy on CIFAR-10 data is {:.2f}%".format(test_acc))
