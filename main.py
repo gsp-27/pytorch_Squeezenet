@@ -146,6 +146,7 @@ def train(epoch):
 def val():
     global best_accuracy
     correct = 0
+    net.eval()
     for idx, (data, target) in enumerate(test_loader):
         if idx == 73:
             break
@@ -174,6 +175,7 @@ def test():
     # load the best saved model
     weights = torch.load('bsqueezenet_onfulldata.pth')
     net.load_state_dict(weights)
+    net.eval()
 
     test_correct = 0
     total_examples = 0
