@@ -21,6 +21,7 @@ parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='n
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--model_name', type=str, default=None, help='Use a pretrained model')
 parser.add_argument('--want_to_test', type=bool, default=False, help='make true if you just want to test')
+parser.add_argument('--epoch_55', action='store_true', help='would you like to use 55 epoch learning rule')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -97,9 +98,10 @@ def adjustlrwd(params):
 def train(epoch):
 
     # set the optimizer for this epoch
-    params = paramsforepoch(epoch)
-    print("Configuring optimizer with lr={:.5f} and weight_decay={:.4f}".format(params['learning_rate'], params['weight_decay']))
-    adjustlrwd(params)
+    if args.epoch_55:
+        params = paramsforepoch(epoch)
+        print("Configuring optimizer with lr={:.5f} and weight_decay={:.4f}".format(params['learning_rate'], params['weight_decay']))
+        adjustlrwd(params)
     ###########################################################################
 
     global avg_loss
