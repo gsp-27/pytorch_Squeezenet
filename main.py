@@ -10,6 +10,7 @@ import os
 import model
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from IPython import embed
 
 parser = argparse.ArgumentParser('Options for training SqueezeNet in pytorch')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N', help='batch size of train')
@@ -22,6 +23,7 @@ parser.add_argument('--seed', type=int, default=1, help='set seed to some consta
 parser.add_argument('--model_name', type=str, default=None, help='Use a pretrained model')
 parser.add_argument('--want_to_test', type=bool, default=False, help='make true if you just want to test')
 parser.add_argument('--epoch_55', action='store_true', help='would you like to use 55 epoch learning rule')
+parser.add_argument('--num_classes', type=int, default=10, help="how many classes training for")
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -120,6 +122,7 @@ def train(epoch):
         # train the network
         optimizer.zero_grad()
         scores = net.forward(data)
+        scores = scores.view(args.batch_size, args.num_classes)
         loss = F.nll_loss(scores, targets)
 
         # compute the accuracy
