@@ -203,7 +203,7 @@ if __name__ == '__main__':
     if not args.want_to_test:
         fig2, ax2 = plt.subplots()
         train_acc, val_acc = list(), list()
-        for i in xrange(1,args.epoch+1):
+        for i in range(1,args.epoch+1):
             train_acc.append(train(i))
             val_acc.append(val())
             ax2.plot(train_acc, 'g')
